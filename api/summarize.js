@@ -106,7 +106,7 @@ export default async function handler(req, res) {
       targetModel = null; // directly use native semantic engine
     }
 
-    let lastError = null;
+    const errors = [];
 
     if (targetModel === null) {
       summary = semanticExtractiveSummary(text, style);
@@ -138,8 +138,7 @@ export default async function handler(req, res) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-              'x-wait-for-model': 'true'
+              'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
               inputs: text,
@@ -147,6 +146,10 @@ export default async function handler(req, res) {
                 max_length: parseInt(maxLength, 10) || 150,
                 min_length: 30,
                 do_sample: false
+              },
+              options: {
+                wait_for_model: true,
+                use_cache: true
               }
             })
           });
@@ -171,18 +174,19 @@ export default async function handler(req, res) {
             }
           } else {
             const errBody = await hfRes.text().catch(() => '');
-            lastError = `Free HF Inference ${ep.split('/').slice(-2).join('/')}: ${hfRes.status} ${errBody.slice(0, 80)}`;
+            errors.push(`${ep.split('/').pop()}: ${hfRes.status} ${errBody.slice(0, 100)}`);
           }
         } catch (epErr) {
-          lastError = `Free HF error: ${epErr.message}`;
+          errors.push(`Endpoint ${ep}: ${epErr.message}`);
         }
       }
 
       // 2. If not summarized, try LLM Chat Completions Router
       if (!summary) {
         const routerCandidates = [
-          'meta-llama/Llama-3.1-8B-Instruct:fastest',
-          'mistralai/Mistral-7B-Instruct-v0.3:fastest'
+          'meta-llama/Llama-3.1-8B-Instruct',
+          'mistralai/Mistral-7B-Instruct-v0.3',
+          'Qwen/Qwen2.5-7B-Instruct-1M'
         ];
 
         for (const mName of routerCandidates) {
@@ -213,15 +217,15 @@ export default async function handler(req, res) {
                   ? 'ConsisAI TL;DR Neural Model'
                   : isFineTunedPegasus
                   ? 'ConsisAI Pegasus Neural Model'
-                  : `Deep Neural (${mName.split('/').pop().replace(':fastest', '')})`;
+                  : `Deep Neural (${mName.split('/').pop()})`;
                 break;
               }
             } else {
               const errTxt = await chatRes.text().catch(() => '');
-              lastError = `${mName}: ${chatRes.status} ${errTxt.slice(0, 80)}`;
+              errors.push(`${mName}: ${chatRes.status} ${errTxt.slice(0, 100)}`);
             }
           } catch (mErr) {
-            lastError = `${mName} error: ${mErr.message}`;
+            errors.push(`${mName}: ${mErr.message}`);
           }
         }
       }
@@ -254,7 +258,7 @@ export default async function handler(req, res) {
       summary_word_count: summWords,
       compression_ratio: parseFloat(ratio),
       engine_mode: mode,
-      debug_info: lastError
+      debug_info: errors.join(' || ')
     });
   } catch (err) {
     console.error('API Handler Error:', err);
