@@ -124,14 +124,15 @@ export default async function handler(req, res) {
         systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction}`;
       }
 
-      // Priority list of models on Hugging Face router
+      // Priority list of models on Hugging Face router with auto-provider selection
       const routerCandidates = [
+        targetModel ? `${targetModel}:fastest` : null,
         targetModel,
-        'meta-llama/Llama-3.1-8B-Instruct',
-        'mistralai/Mistral-7B-Instruct-v0.3',
-        'Qwen/Qwen2.5-7B-Instruct-1M',
-        'google/gemma-2-9b-it'
-      ];
+        'deepseek-ai/DeepSeek-R1:fastest',
+        'Qwen/Qwen2.5-72B-Instruct:fastest',
+        'meta-llama/Llama-3.1-8B-Instruct:fastest',
+        'meta-llama/Llama-3.3-70B-Instruct:fastest'
+      ].filter(Boolean);
 
       for (const mName of routerCandidates) {
         try {
