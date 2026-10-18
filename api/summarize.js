@@ -124,53 +124,105 @@ export default async function handler(req, res) {
         systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction}`;
       }
 
-      // Priority list of models on Hugging Face router with auto-provider selection
-      const routerCandidates = [
-        targetModel ? `${targetModel}:fastest` : null,
-        targetModel,
-        'deepseek-ai/DeepSeek-R1:fastest',
-        'Qwen/Qwen2.5-72B-Instruct:fastest',
-        'meta-llama/Llama-3.1-8B-Instruct:fastest',
-        'meta-llama/Llama-3.3-70B-Instruct:fastest'
-      ].filter(Boolean);
+      // 1. Try Free Native Serverless Inference API (BART, Pegasus - 100% Free, no prepaid credits)
+      const freeEndpoints = [
+        `https://router.huggingface.co/hf-inference/models/${targetModel}`,
+        'https://router.huggingface.co/hf-inference/models/facebook/bart-large-cnn',
+        'https://router.huggingface.co/hf-inference/models/google/pegasus-xsum',
+        'https://router.huggingface.co/hf-inference/models/google/pegasus-cnn_dailymail'
+      ];
 
-      for (const mName of routerCandidates) {
+      for (const ep of freeEndpoints) {
         try {
-          const chatRes = await fetch('https://router.huggingface.co/v1/chat/completions', {
+          const hfRes = await fetch(ep, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${token}`,
+              'x-wait-for-model': 'true'
             },
             body: JSON.stringify({
-              model: mName,
-              messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: text }
-              ],
-              max_tokens: parseInt(maxLength, 10) || 180,
-              temperature: 0.3
+              inputs: text,
+              parameters: {
+                max_length: parseInt(maxLength, 10) || 150,
+                min_length: 30,
+                do_sample: false
+              }
             })
           });
 
-          if (chatRes.ok) {
-            const chatData = await chatRes.json();
-            const genText = chatData.choices?.[0]?.message?.content;
-            if (genText && genText.trim()) {
-              summary = genText.trim();
+          if (hfRes.ok) {
+            const hfData = await hfRes.json();
+            let gen = '';
+            if (Array.isArray(hfData) && hfData[0]) {
+              gen = hfData[0].summary_text || hfData[0].generated_text || '';
+            } else if (hfData.generated_text) {
+              gen = hfData.generated_text;
+            }
+            if (gen && gen.trim()) {
+              summary = gen.trim();
+              const usedName = ep.split('/').slice(-2).join('/');
               mode = isFineTunedTLDR
                 ? 'ConsisAI TL;DR Neural Model'
                 : isFineTunedPegasus
                 ? 'ConsisAI Pegasus Neural Model'
-                : `Deep Neural (${mName.split('/').pop()})`;
+                : `Deep Neural (${usedName})`;
               break;
             }
           } else {
-            const errTxt = await chatRes.text().catch(() => '');
-            lastError = `${mName}: ${chatRes.status} ${errTxt.slice(0, 100)}`;
+            const errBody = await hfRes.text().catch(() => '');
+            lastError = `Free HF Inference ${ep.split('/').slice(-2).join('/')}: ${hfRes.status} ${errBody.slice(0, 80)}`;
           }
-        } catch (mErr) {
-          lastError = `${mName} error: ${mErr.message}`;
+        } catch (epErr) {
+          lastError = `Free HF error: ${epErr.message}`;
+        }
+      }
+
+      // 2. If not summarized, try LLM Chat Completions Router
+      if (!summary) {
+        const routerCandidates = [
+          'meta-llama/Llama-3.1-8B-Instruct:fastest',
+          'mistralai/Mistral-7B-Instruct-v0.3:fastest'
+        ];
+
+        for (const mName of routerCandidates) {
+          try {
+            const chatRes = await fetch('https://router.huggingface.co/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                model: mName,
+                messages: [
+                  { role: 'system', content: systemPrompt },
+                  { role: 'user', content: text }
+                ],
+                max_tokens: parseInt(maxLength, 10) || 180,
+                temperature: 0.3
+              })
+            });
+
+            if (chatRes.ok) {
+              const chatData = await chatRes.json();
+              const genText = chatData.choices?.[0]?.message?.content;
+              if (genText && genText.trim()) {
+                summary = genText.trim();
+                mode = isFineTunedTLDR
+                  ? 'ConsisAI TL;DR Neural Model'
+                  : isFineTunedPegasus
+                  ? 'ConsisAI Pegasus Neural Model'
+                  : `Deep Neural (${mName.split('/').pop().replace(':fastest', '')})`;
+                break;
+              }
+            } else {
+              const errTxt = await chatRes.text().catch(() => '');
+              lastError = `${mName}: ${chatRes.status} ${errTxt.slice(0, 80)}`;
+            }
+          } catch (mErr) {
+            lastError = `${mName} error: ${mErr.message}`;
+          }
         }
       }
     }
