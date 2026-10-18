@@ -372,14 +372,16 @@
         <div class="form-group">
           <label class="form-label" for="model-select">Neural Summarizer Model Architecture</label>
           <select id="model-select">
-            <optgroup label="🌟 ConsisAI Custom Models (Trained &amp; Fine-Tuned)">
-              <option value="consis_ai_tldr_final" selected>ConsisAI TL;DR Final (Fine-Tuned on OpenAI TL;DR Corpus)</option>
-              <option value="final_model">ConsisAI Pegasus Final (Fine-Tuned on Research Papers &amp; News)</option>
-              <option value="ConsisAI-Semantic-Engine">ConsisAI Native Semantic Engine (Instant Zero-Latency Edge)</option>
+            <optgroup label="⚡ Ultra-Fast Cloud Neural (Powered by Groq LPU)">
+              <option value="consis_ai_tldr_final" selected>ConsisAI TL;DR Neural Model (Llama-3.3-70B • Executive Brief)</option>
+              <option value="final_model">ConsisAI Pegasus Neural Model (Llama-3.1-8B • Ultra-Fast 300 t/s)</option>
             </optgroup>
-            <optgroup label="🧠 Modern Instruction LLMs (ChatGPT / Gemini Style)">
-              <option value="Qwen/Qwen2.5-0.5B-Instruct">Qwen/Qwen2.5-0.5B-Instruct (630M Compact Instruct LLM)</option>
+            <optgroup label="🌟 ConsisAI Native Offline Engine">
+              <option value="ConsisAI-Semantic-Engine">ConsisAI Native Semantic Engine (Instant Offline Extraction)</option>
+            </optgroup>
+            <optgroup label="🧠 Modern Instruction LLMs">
               <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct (7 Billion Deep Reasoning LLM)</option>
+              <option value="Qwen/Qwen2.5-0.5B-Instruct">Qwen/Qwen2.5-0.5B-Instruct (630M Compact Instruct LLM)</option>
             </optgroup>
             <optgroup label="📰 Classical Seq2Seq Transformers">
               <option value="facebook/bart-large-cnn">facebook/bart-large-cnn (561M Meta BART Abstractive)</option>
@@ -387,7 +389,7 @@
               <option value="google/pegasus-xsum">google/pegasus-xsum (865M Pegasus Extreme Conciseness)</option>
             </optgroup>
           </select>
-          <div class="form-hint">Supports all 8 project models: Custom Fine-Tuned, Modern Qwen LLMs, and Meta/Google Seq2Seq.</div>
+          <div class="form-hint">Supports full abstractive neural synthesis across Groq LPU, Hugging Face, and local engines.</div>
         </div>
 
         <div class="form-group">
@@ -421,12 +423,14 @@
         </div>
 
         <div class="form-group" style="margin-top: 14px;">
-          <details style="background: var(--cozy-card); border: 1px solid var(--cozy-border); border-radius: 8px; padding: 10px 14px;">
-            <summary style="cursor: pointer; font-size: 13px; font-weight: 600; color: #ffffff;">🔑 Hugging Face API Token (Optional for Deep Neural Mode)</summary>
+          <details style="background: var(--cozy-card); border: 1px solid var(--cozy-border); border-radius: 8px; padding: 10px 14px;" open>
+            <summary style="cursor: pointer; font-size: 13px; font-weight: 700; color: #ffffff;">🔑 Cloud AI Key (Groq Free Key or Hugging Face)</summary>
             <div style="margin-top: 10px;">
-              <input type="password" id="hf-token-input" placeholder="Paste your free HF token (hf_...)" onchange="saveToken()" style="margin-bottom: 6px;">
-              <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.4;">
-                Without a token, ConsisAI runs on its built-in zero-latency Semantic Engine. Add a free token from <a href="https://huggingface.co/settings/tokens" target="_blank" style="color: #60a5fa; text-decoration: underline;">huggingface.co/settings/tokens</a> to enable full Transformer models.
+              <input type="password" id="hf-token-input" placeholder="Paste free Groq key (gsk_...) or HF token (hf_...)" oninput="saveToken()" style="margin-bottom: 6px;">
+              <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.45;">
+                <strong style="color: #34d399;">⚡ Recommended (100% Free, No Credit Card):</strong>
+                Get a free key in 10 seconds at <a href="https://console.groq.com/keys" target="_blank" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">console.groq.com/keys</a> for true neural abstractive summaries at 300 tokens/sec.
+                <br>Or set <code>GROQ_API_KEY</code> in Vercel Project Settings to power all mobile phones automatically without entering a key!
               </p>
             </div>
           </details>
@@ -513,7 +517,7 @@
 
     // Initialize token on load
     window.addEventListener('DOMContentLoaded', () => {
-      const savedToken = localStorage.getItem('hf_token');
+      const savedToken = localStorage.getItem('ai_cloud_key') || localStorage.getItem('hf_token');
       if (savedToken) {
         const inp = document.getElementById('hf-token-input');
         if (inp) inp.value = savedToken;
@@ -523,7 +527,9 @@
     function saveToken() {
       const inp = document.getElementById('hf-token-input');
       if (inp) {
-        localStorage.setItem('hf_token', inp.value.trim());
+        const val = inp.value.trim();
+        localStorage.setItem('ai_cloud_key', val);
+        localStorage.setItem('hf_token', val);
       }
     }
 
@@ -531,7 +537,8 @@
       const text = document.getElementById('input-text').value.trim();
       const model = document.getElementById('model-select').value;
       const style = document.querySelector('input[name="style"]:checked').value;
-      const customToken = (localStorage.getItem('hf_token') || '').trim();
+      const inputEl = document.getElementById('hf-token-input');
+      const customToken = ((inputEl && inputEl.value.trim()) || localStorage.getItem('ai_cloud_key') || localStorage.getItem('hf_token') || '').trim();
       const errorBox = document.getElementById('error-box');
       const submitBtn = document.getElementById('submit-btn');
       const outputBox = document.getElementById('output-box');

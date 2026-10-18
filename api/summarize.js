@@ -87,7 +87,10 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Please enter text to summarize.' });
     }
 
-    const token = (customToken && customToken.trim()) || process.env.HF_TOKEN || '';
+    const providedKey = (customToken && customToken.trim()) || '';
+    const groqKey = process.env.GROQ_API_KEY || (providedKey.startsWith('gsk_') ? providedKey : '');
+    const hfToken = process.env.HF_TOKEN || (providedKey.startsWith('hf_') ? providedKey : (providedKey && !providedKey.startsWith('gsk_') ? providedKey : ''));
+    const token = hfToken;
     let summary = '';
     let mode = 'ConsisAI Fast Semantic Engine';
 
@@ -97,10 +100,10 @@ export default async function handler(req, res) {
     let isFineTunedPegasus = false;
 
     if (model === 'consis_ai_tldr_final') {
-      targetModel = 'Qwen/Qwen2.5-7B-Instruct';
+      targetModel = 'llama-3.3-70b-versatile';
       isFineTunedTLDR = true;
     } else if (model === 'final_model') {
-      targetModel = 'google/pegasus-xsum';
+      targetModel = 'llama-3.1-8b-instant';
       isFineTunedPegasus = true;
     } else if (model === 'ConsisAI-Semantic-Engine') {
       targetModel = null; // directly use native semantic engine
@@ -108,21 +111,72 @@ export default async function handler(req, res) {
 
     const errors = [];
 
-    if (targetModel === null) {
-      summary = semanticExtractiveSummary(text, style);
-      mode = 'ConsisAI Native Semantic Engine';
-    } else if (token) {
-      let instruction = 'Provide a high-density executive brief with 2-4 key takeaway bullet points.';
-      if (style === 'oneliner') {
-        instruction = 'Provide a single concise punchline sentence summarizing the core takeaway.';
-      } else if (style === 'paragraph') {
-        instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
-      }
+    let instruction = 'Provide a high-density executive brief with 2-4 key takeaway bullet points.';
+    if (style === 'oneliner') {
+      instruction = 'Provide a single concise punchline sentence summarizing the core takeaway.';
+    } else if (style === 'paragraph') {
+      instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
+    }
 
-      let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction} Preserve complete core meaning and nuance. Do not repeat raw text word-for-word; synthesize and extract key takeaways.`;
-      if (isFineTunedTLDR) {
-        systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction}`;
+    let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction} Preserve complete core meaning and nuance. Rephrase and synthesize concepts with extreme conciseness and clarity. Do not copy sentences word-for-word.`;
+    if (isFineTunedTLDR) {
+      systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction} Synthesize and summarize abstractively.`;
+    } else if (model && model.includes('bart')) {
+      systemPrompt = `You are ConsisAI (BART Transformer Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with high linguistic fluency.`;
+    } else if (model && model.includes('pegasus')) {
+      systemPrompt = `You are ConsisAI (Pegasus Extreme Conciseness Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with maximum information density.`;
+    }
+
+    // 1. Try Groq Free Cloud API first if Groq key is present (Ultra-Fast 300 tokens/sec, true abstractive)
+    if (targetModel !== null && groqKey) {
+      try {
+        const groqModel = (targetModel && (targetModel.includes('70b') || targetModel.includes('versatile')))
+          ? 'llama-3.3-70b-versatile'
+          : 'llama-3.1-8b-instant';
+
+        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${groqKey}`
+          },
+          body: JSON.stringify({
+            model: groqModel,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: text }
+            ],
+            max_tokens: parseInt(maxLength, 10) || 200,
+            temperature: 0.3
+          })
+        });
+
+        if (groqRes.ok) {
+          const groqData = await groqRes.json();
+          const gen = groqData.choices?.[0]?.message?.content;
+          if (gen && gen.trim()) {
+            summary = gen.trim();
+            mode = isFineTunedTLDR
+              ? 'ConsisAI TL;DR Neural Model (Groq LPU)'
+              : isFineTunedPegasus
+              ? 'ConsisAI Pegasus Neural Model (Groq LPU)'
+              : model.includes('bart')
+              ? 'ConsisAI BART Neural Engine (Groq LPU)'
+              : model.includes('pegasus')
+              ? 'ConsisAI Pegasus Neural Engine (Groq LPU)'
+              : `Deep Neural (${groqModel} Groq)`;
+          }
+        } else {
+          const errTxt = await groqRes.text().catch(() => '');
+          errors.push(`Groq ${groqRes.status}: ${errTxt.slice(0, 100)}`);
+        }
+      } catch (gErr) {
+        errors.push(`Groq error: ${gErr.message}`);
       }
+    }
+
+    // 2. If not summarized, try Hugging Face router if HF token present
+    if (targetModel !== null && !summary && hfToken) {
 
       // 1. Try Free Native Serverless Inference API (BART, Pegasus - 100% Free, no prepaid credits)
       const freeEndpoints = [
