@@ -1,0 +1,12 @@
+{
+  "name": "consis-ai",
+  "version": "2.0.0",
+  "description": "ConsisAI - Executive Text Summarizer by Rajendra Singh Bisht",
+  "scripts": {
+    "start": "serve public"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "serve": "^14.2.4"
+  }
+}

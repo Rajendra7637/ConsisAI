@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ConsisAI - Executive Text Summarization</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cozy-bg: #090d16;
+      --cozy-card: #131b2e;
+      --cozy-border: #202d44;
+      --cozy-text: #ffffff;
+      --cozy-sub: #cbd5e1;
+      --cozy-btn: #1e293b;
+      --cozy-badge-bg: #1e293b;
+      --cozy-badge-text: #60a5fa;
+      --font: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      background-color: var(--cozy-bg);
+      background: var(--cozy-bg);
+      color: #ffffff;
+      font-family: var(--font);
+      min-height: 100vh;
+      width: 100%;
+      transition: background-color 0.4s ease;
+    }
+
+    /* All text strictly white */
+    p, span, div, h1, h2, h3, h4, label, input, textarea, select, button {
+      color: #ffffff;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px 48px;
+    }
+
+    /* Header */
+    .header-wrapper {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      margin-bottom: 28px;
+      border-bottom: 1px solid var(--cozy-border);
+      transition: border-color 0.4s ease;
+    }
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .brand-name {
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: -0.7px;
+    }
+    .brand-badge {
+      background: var(--cozy-badge-bg);
+      border: 1px solid var(--cozy-border);
+      color: var(--cozy-badge-text);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 4px 10px;
+      border-radius: 9999px;
+    }
+    .header-subtext {
+      font-size: 14.5px;
+      color: #cbd5e1 !important;
+      margin-top: 6px;
+    }
+    .header-subtext strong {
+      color: #ffffff !important;
+      font-weight: 700;
+    }
+
+    /* Cozy Theme Button */
+    .cozy-btn {
+      background: var(--cozy-card);
+      border: 1.5px solid var(--cozy-border);
+      color: #ffffff;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 18px;
+      border-radius: 9999px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      cursor: pointer;
+      transition: all 0.25s ease;
+    }
+    .cozy-btn:hover {
+      transform: translateY(-1px);
+      border-color: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Grid Layout */
+    .app-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+    @media (max-width: 860px) {
+      .app-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 18px;
+    }
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #ffffff;
+    }
+    .form-hint {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 4px;
+    }
+    select, textarea, input[type="text"] {
+      width: 100%;
+      background: var(--cozy-card);
+      border: 1px solid var(--cozy-border);
+      color: #ffffff;
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-family: var(--font);
+      font-size: 14.5px;
+      transition: all 0.3s ease;
+    }
+    select:focus, textarea:focus, input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    textarea {
+      resize: vertical;
+      min-height: 180px;
+      line-height: 1.6;
+    }
+
+    /* Sample chips */
+    .chips-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .chip-btn {
+      background: var(--cozy-card);
+      border: 1px solid var(--cozy-border);
+      border-radius: 9999px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #ffffff;
+      padding: 5px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .chip-btn:hover {
+      border-color: #ffffff;
+      background: var(--cozy-border);
+    }
+
+    /* Radios */
+    .radio-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .radio-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--cozy-card);
+      border: 1px solid var(--cozy-border);
+      padding: 10px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13.5px;
+      transition: all 0.2s ease;
+    }
+    .radio-option:hover {
+      border-color: #3b82f6;
+    }
+    .radio-option input[type="radio"] {
+      accent-color: #3b82f6;
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Summarize Button */
+    .summarize-btn {
+      width: 100%;
+      background: #2563eb;
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 15px;
+      border-radius: 10px;
+      padding: 14px 24px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 16px rgba(37, 99, 235, 0.35);
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-top: 10px;
+    }
+    .summarize-btn:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
+    }
+    .summarize-btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Output Card */
+    .output-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+    .summary-card {
+      background: var(--cozy-card);
+      border: 1px solid var(--cozy-border);
+      border-radius: 12px;
+      padding: 22px;
+      min-height: 240px;
+      line-height: 1.75;
+      font-size: 15px;
+      color: #ffffff;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      white-space: pre-wrap;
+      transition: all 0.4s ease;
+    }
+    .summary-placeholder {
+      color: #64748b;
+      font-style: italic;
+    }
+
+    /* Metrics Dashboard */
+    .metrics-card {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .metric-tile {
+      background: var(--cozy-card);
+      border: 1px solid var(--cozy-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-align: center;
+      transition: all 0.4s ease;
+    }
+    .metric-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: #cbd5e1 !important;
+      margin-bottom: 4px;
+    }
+    .metric-stat {
+      font-size: 19px;
+      font-weight: 800;
+      color: #ffffff;
+    }
+    .metric-stat.accent {
+      color: #34d399;
+    }
+
+    /* Developer Credit Banner at Bottom */
+    .dev-credit-banner {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: var(--cozy-card);
+      border: 1.5px solid var(--cozy-border);
+      border-radius: 14px;
+      padding: 22px 28px;
+      margin-top: 48px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+      text-align: center;
+      transition: all 0.4s ease;
+    }
+    .dev-credit-tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--cozy-badge-text);
+      background: var(--cozy-badge-bg);
+      border: 1px solid var(--cozy-border);
+      padding: 4px 14px;
+      border-radius: 9999px;
+      margin-bottom: 10px;
+      display: inline-block;
+    }
+    .dev-credit-name {
+      font-size: 18px;
+      font-weight: 600;
+      color: #ffffff;
+      margin: 0;
+    }
+    .dev-credit-name strong {
+      font-weight: 800;
+      color: #ffffff;
+      font-size: 20px;
+      text-decoration: underline;
+      text-underline-offset: 4px;
+    }
+    .dev-credit-meta {
+      font-size: 13px;
+      color: #cbd5e1;
+      margin-top: 6px;
+    }
+
+    .error-box {
+      display: none;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid #ef4444;
+      color: #fca5a5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13.5px;
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header-wrapper">
+      <div>
+        <div class="header-title-row">
+          <h1 class="brand-name">ConsisAI</h1>
+          <span class="brand-badge">Vercel Cloud v2.0</span>
+        </div>
+        <p class="header-subtext">
+          High-density abstractive summarization & semantic extraction • Developed By <strong>Rajendra Singh Bisht</strong>
+        </p>
+      </div>
+      <button id="cozy-btn" class="cozy-btn" onclick="toggleCozyTheme()">🎨 Cozy Atmosphere</button>
+    </header>
+
+    <!-- App Main Grid -->
+    <main class="app-grid">
+      <!-- Left Column: Inputs -->
+      <section>
+        <div class="form-group">
+          <label class="form-label" for="model-select">Neural Summarizer Model</label>
+          <select id="model-select">
+            <option value="facebook/bart-large-cnn" selected>facebook/bart-large-cnn (Classic Fast Abstractive)</option>
+            <option value="google/pegasus-xsum">google/pegasus-xsum (Ultra-Concise Gap Sentence Pretraining)</option>
+            <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct (Modern Instruction LLM)</option>
+          </select>
+          <div class="form-hint">Cloud serverless inference with zero local GPU requirements.</div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="input-text">Input Document</label>
+          <textarea id="input-text" placeholder="Type or paste long article, paper, or text here..."></textarea>
+        </div>
+
+        <!-- Sample chips -->
+        <div class="chips-row">
+          <button class="chip-btn" onclick="loadSample('healthcare')">Healthcare AI</button>
+          <button class="chip-btn" onclick="loadSample('quantum')">Quantum Computing</button>
+          <button class="chip-btn" onclick="loadSample('batteries')">Solid-State Batteries</button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Output Structure</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="style" value="bullets" checked>
+              <span>Executive Brief (TL;DR + Key Takeaways)</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="style" value="oneliner">
+              <span>Single Sentence Punchline</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="style" value="paragraph">
+              <span>Fluent Synthesis Paragraph</span>
+            </label>
+          </div>
+        </div>
+
+        <button id="submit-btn" class="summarize-btn" onclick="synthesizeSummary()">Synthesize Summary</button>
+        <div id="error-box" class="error-box"></div>
+      </section>
+
+      <!-- Right Column: Outputs -->
+      <section>
+        <h3 class="output-section-title">Generated Summary</h3>
+        <div id="output-box" class="summary-card">
+          <span class="summary-placeholder">Your summary will be synthesized here...</span>
+        </div>
+
+        <!-- Analytics Tiles -->
+        <div class="metrics-card">
+          <div class="metric-tile">
+            <div class="metric-title">Original Length</div>
+            <div id="orig-words" class="metric-stat">0 <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span></div>
+          </div>
+          <div class="metric-tile">
+            <div class="metric-title">Summary Length</div>
+            <div id="summ-words" class="metric-stat">0 <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span></div>
+          </div>
+          <div class="metric-tile">
+            <div class="metric-title">Information Density</div>
+            <div id="ratio" class="metric-stat accent">0.0% <span style="font-size:12px;font-weight:400;color:#34d399;">saved</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Bottom Developer Credit Banner -->
+    <footer class="dev-credit-banner">
+      <span class="dev-credit-tag">CREATOR &amp; ENGINEER</span>
+      <div class="dev-credit-name">
+        Developed By <strong>Rajendra Singh Bisht</strong>
+      </div>
+      <div class="dev-credit-meta">
+        ConsisAI Neural Engine • Deployed on Vercel Edge Serverless
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const SAMPLES = {
+      healthcare: "Artificial intelligence has rapidly transformed healthcare operations across the globe. Modern hospital systems are leveraging machine learning models to detect anomalies in radiology scans, predict patient deterioration hours before clinical symptoms manifest, and automate administrative appointment scheduling. Clinical trials have demonstrated that deep learning algorithms achieve diagnostic accuracy on par with seasoned specialists in identifying conditions such as diabetic retinopathy and melanoma. Furthermore, predictive analytics help emergency departments forecast patient admission surges, optimizing nurse staffing ratios and bed allocation. However, integrating these algorithms into existing electronic health record workflows requires rigorous clinical validation, data privacy governance under HIPAA regulations, and continuous post-market surveillance to mitigate diagnostic bias.",
+      quantum: "Quantum computing harnesses the strange principles of quantum mechanics, notably superposition and entanglement, to process complex information fundamentally faster than classical silicon-based supercomputers. Whereas classical bits operate strictly in binary states of zero or one, quantum bits, or qubits, can exist simultaneously in linear combinations of both states. This superposition enables quantum processors to evaluate an astronomical number of computational possibilities in parallel. Promising applications include accelerating molecular simulation for targeted drug discovery, cracking cryptographic keys that secure internet communications, and optimizing global supply chains. Nevertheless, current quantum hardware remains hampered by environmental decoherence, high error rates, and the requirement of sub-Kelvin cryogenic refrigeration.",
+      batteries: "Electric vehicle (EV) manufacturers are intensifying research into solid-state battery technology to replace conventional liquid lithium-ion chemistry. Solid-state cells utilize a solid electrolyte, which significantly diminishes the risk of thermal runaway and battery fires while enabling substantially higher energy density by weight and volume. As a consequence, future EVs equipped with solid-state cells could achieve driving ranges exceeding 600 miles on a single charge and recharge from ten to eighty percent in under fifteen minutes. Despite these compelling advantages, automotive engineers face significant manufacturing hurdles, including interface impedance between solid layers, dendrite growth during ultra-fast cycling, and the high cost of mass production tooling."
+    };
+
+    function loadSample(key) {
+      document.getElementById('input-text').value = SAMPLES[key] || '';
+    }
+
+    const PALETTES = [
+      { name: "Midnight Obsidian", bg: "#090d16", card: "#131b2e", border: "#202d44", badgeBg: "#1e293b", badgeText: "#60a5fa" },
+      { name: "Cozy Espresso", bg: "#120c09", card: "#1f1612", border: "#3d2b23", badgeBg: "#2d1c14", badgeText: "#f3b892" },
+      { name: "Deep Nordic Pine", bg: "#08130d", card: "#112318", border: "#1d3b2a", badgeBg: "#163321", badgeText: "#6ee7b7" },
+      { name: "Velvet Night Plum", bg: "#110915", card: "#1f1325", border: "#392244", badgeBg: "#2a1733", badgeText: "#d8b4fe" },
+      { name: "Fireside Charcoal", bg: "#0f0f10", card: "#1b1b1d", border: "#333336", badgeBg: "#272320", badgeText: "#fb923c" },
+      { name: "Abyssal Navy", bg: "#070e17", card: "#0f1b2c", border: "#1c304d", badgeBg: "#14273e", badgeText: "#38bdf8" },
+      { name: "Dark Cinnamon", bg: "#150d09", card: "#241610", border: "#42271d", badgeBg: "#331c13", badgeText: "#f59e0b" }
+    ];
+
+    let currentThemeIdx = 0;
+    function toggleCozyTheme() {
+      currentThemeIdx = (currentThemeIdx + 1) % PALETTES.length;
+      const p = PALETTES[currentThemeIdx];
+      const root = document.documentElement;
+      root.style.setProperty("--cozy-bg", p.bg);
+      root.style.setProperty("--cozy-card", p.card);
+      root.style.setProperty("--cozy-border", p.border);
+      root.style.setProperty("--cozy-badge-bg", p.badgeBg);
+      root.style.setProperty("--cozy-badge-text", p.badgeText);
+      document.body.style.backgroundColor = p.bg;
+      document.getElementById('cozy-btn').innerText = "🎨 " + p.name;
+    }
+
+    async function synthesizeSummary() {
+      const text = document.getElementById('input-text').value.trim();
+      const model = document.getElementById('model-select').value;
+      const style = document.querySelector('input[name="style"]:checked').value;
+      const errorBox = document.getElementById('error-box');
+      const submitBtn = document.getElementById('submit-btn');
+      const outputBox = document.getElementById('output-box');
+
+      errorBox.style.display = 'none';
+
+      if (!text) {
+        errorBox.innerText = 'Please enter or paste a document to summarize.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerText = '⚡ Synthesizing Summary...';
+      outputBox.innerHTML = '<span class="summary-placeholder">Generating high-density executive summary...</span>';
+
+      try {
+        const res = await fetch('/api/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, model, style, maxLength: 150 })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to synthesize summary.');
+        }
+
+        outputBox.innerText = data.summary;
+        document.getElementById('orig-words').innerHTML = `${data.original_word_count} <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span>`;
+        document.getElementById('summ-words').innerHTML = `${data.summary_word_count} <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span>`;
+        document.getElementById('ratio').innerHTML = `${data.compression_ratio}% <span style="font-size:12px;font-weight:400;color:#34d399;">saved</span>`;
+      } catch (err) {
+        errorBox.innerText = err.message;
+        errorBox.style.display = 'block';
+        outputBox.innerHTML = '<span class="summary-placeholder">Summarization failed. Check error message above.</span>';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Synthesize Summary';
+      }
+    }
+  </script>
+</body>
+</html>
