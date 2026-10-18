@@ -108,28 +108,33 @@ export default async function handler(req, res) {
 
     let lastError = null;
 
-    // If native engine requested, skip HF
     if (targetModel === null) {
       summary = semanticExtractiveSummary(text, style);
       mode = 'ConsisAI Native Semantic Engine';
     } else if (token) {
-      try {
-        const isQwen = targetModel.toLowerCase().includes('qwen') || targetModel.toLowerCase().includes('instruct');
+      let instruction = 'Provide a high-density executive brief with 2-4 key takeaway bullet points.';
+      if (style === 'oneliner') {
+        instruction = 'Provide a single concise punchline sentence summarizing the core takeaway.';
+      } else if (style === 'paragraph') {
+        instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
+      }
 
-        if (isQwen) {
-          let instruction = 'Provide a high-density executive brief with 2-4 key takeaway bullet points.';
-          if (style === 'oneliner') {
-            instruction = 'Provide a single concise punchline sentence summarizing the core takeaway.';
-          } else if (style === 'paragraph') {
-            instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
-          }
+      let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction} Preserve complete core meaning and nuance. Do not repeat raw text word-for-word; synthesize and extract key takeaways.`;
+      if (isFineTunedTLDR) {
+        systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction}`;
+      }
 
-          let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction}`;
-          if (isFineTunedTLDR) {
-            systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR brief. ${instruction}`;
-          }
+      // Priority list of models on Hugging Face router
+      const routerCandidates = [
+        targetModel,
+        'meta-llama/Llama-3.1-8B-Instruct',
+        'mistralai/Mistral-7B-Instruct-v0.3',
+        'Qwen/Qwen2.5-7B-Instruct-1M',
+        'google/gemma-2-9b-it'
+      ];
 
-          // Try OpenAI-compatible chat router
+      for (const mName of routerCandidates) {
+        try {
           const chatRes = await fetch('https://router.huggingface.co/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -137,80 +142,39 @@ export default async function handler(req, res) {
               'Authorization': `Bearer ${token}`
             },
             body: JSON.stringify({
-              model: targetModel,
+              model: mName,
               messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: text }
               ],
-              max_tokens: parseInt(maxLength, 10) || 150,
+              max_tokens: parseInt(maxLength, 10) || 180,
               temperature: 0.3
             })
           });
 
           if (chatRes.ok) {
             const chatData = await chatRes.json();
-            summary = chatData.choices?.[0]?.message?.content || '';
-            if (summary) {
-              mode = isFineTunedTLDR ? 'ConsisAI TL;DR Final (Fine-Tuned)' : `Deep Neural (${targetModel.split('/').pop()})`;
+            const genText = chatData.choices?.[0]?.message?.content;
+            if (genText && genText.trim()) {
+              summary = genText.trim();
+              mode = isFineTunedTLDR
+                ? 'ConsisAI TL;DR Neural Model'
+                : isFineTunedPegasus
+                ? 'ConsisAI Pegasus Neural Model'
+                : `Deep Neural (${mName.split('/').pop()})`;
+              break;
             }
           } else {
             const errTxt = await chatRes.text().catch(() => '');
-            lastError = `Qwen Router ${chatRes.status}: ${errTxt.slice(0, 150)}`;
+            lastError = `${mName}: ${chatRes.status} ${errTxt.slice(0, 100)}`;
           }
-        } else {
-          // Seq2Seq models (BART, Pegasus)
-          const payload = {
-            inputs: text,
-            parameters: {
-              max_length: parseInt(maxLength, 10) || 150,
-              min_length: Math.max(20, Math.floor((parseInt(maxLength, 10) || 150) / 4)),
-              do_sample: false
-            }
-          };
-
-          const endpoints = [
-            `https://router.huggingface.co/hf-inference/models/${targetModel}`,
-            `https://api-inference.huggingface.co/models/${targetModel}`
-          ];
-
-          for (const ep of endpoints) {
-            try {
-              const hfRes = await fetch(ep, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${token}`,
-                  'x-wait-for-model': 'true'
-                },
-                body: JSON.stringify(payload)
-              });
-
-              if (hfRes.ok) {
-                const hfData = await hfRes.json();
-                if (Array.isArray(hfData) && hfData[0]) {
-                  summary = hfData[0].summary_text || hfData[0].generated_text || '';
-                } else if (hfData.generated_text) {
-                  summary = hfData.generated_text;
-                }
-                if (summary) {
-                  mode = isFineTunedPegasus ? 'ConsisAI Pegasus Final (Fine-Tuned)' : `Deep Neural (${targetModel.split('/').pop()})`;
-                  break;
-                }
-              } else {
-                const errTxt = await hfRes.text().catch(() => '');
-                lastError = `HF ${ep.includes('router') ? 'Router' : 'API'} ${hfRes.status}: ${errTxt.slice(0, 150)}`;
-              }
-            } catch (epErr) {
-              lastError = `Connection to ${ep}: ${epErr.message}`;
-            }
-          }
+        } catch (mErr) {
+          lastError = `${mName} error: ${mErr.message}`;
         }
-      } catch (hfErr) {
-        lastError = `Inference exception: ${hfErr.message}`;
       }
     }
 
-    // Fallback if no token or if HF endpoint is busy/unreachable
+    // Fallback if no token or if all cloud models are unavailable
     if (!summary) {
       summary = semanticExtractiveSummary(text, style);
       mode = isFineTunedTLDR
@@ -218,7 +182,7 @@ export default async function handler(req, res) {
         : isFineTunedPegasus
         ? 'ConsisAI Pegasus Semantic Engine'
         : token
-        ? 'ConsisAI Semantic Engine (Cloud Model Busy)'
+        ? 'ConsisAI Semantic Engine (Cloud Warming Up)'
         : 'ConsisAI Instant Cloud Semantic';
     }
 
