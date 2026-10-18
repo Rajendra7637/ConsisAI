@@ -409,13 +409,28 @@
           </div>
         </div>
 
+        <div class="form-group" style="margin-top: 14px;">
+          <details style="background: var(--cozy-card); border: 1px solid var(--cozy-border); border-radius: 8px; padding: 10px 14px;">
+            <summary style="cursor: pointer; font-size: 13px; font-weight: 600; color: #ffffff;">🔑 Hugging Face API Token (Optional for Deep Neural Mode)</summary>
+            <div style="margin-top: 10px;">
+              <input type="password" id="hf-token-input" placeholder="Paste your free HF token (hf_...)" onchange="saveToken()" style="margin-bottom: 6px;">
+              <p style="font-size: 11.5px; color: #94a3b8; line-height: 1.4;">
+                Without a token, ConsisAI runs on its built-in zero-latency Semantic Engine. Add a free token from <a href="https://huggingface.co/settings/tokens" target="_blank" style="color: #60a5fa; text-decoration: underline;">huggingface.co/settings/tokens</a> to enable full Transformer models.
+              </p>
+            </div>
+          </details>
+        </div>
+
         <button id="submit-btn" class="summarize-btn" onclick="synthesizeSummary()">Synthesize Summary</button>
         <div id="error-box" class="error-box"></div>
       </section>
 
       <!-- Right Column: Outputs -->
       <section>
-        <h3 class="output-section-title">Generated Summary</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <h3 class="output-section-title" style="margin-bottom: 0;">Generated Summary</h3>
+          <span id="engine-badge" style="font-size: 11.5px; font-weight: 600; background: var(--cozy-badge-bg); color: var(--cozy-badge-text); border: 1px solid var(--cozy-border); padding: 3px 10px; border-radius: 9999px;">Ready</span>
+        </div>
         <div id="output-box" class="summary-card">
           <span class="summary-placeholder">Your summary will be synthesized here...</span>
         </div>
@@ -485,13 +500,31 @@
       document.getElementById('cozy-btn').innerText = "🎨 " + p.name;
     }
 
+    // Initialize token on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedToken = localStorage.getItem('hf_token');
+      if (savedToken) {
+        const inp = document.getElementById('hf-token-input');
+        if (inp) inp.value = savedToken;
+      }
+    });
+
+    function saveToken() {
+      const inp = document.getElementById('hf-token-input');
+      if (inp) {
+        localStorage.setItem('hf_token', inp.value.trim());
+      }
+    }
+
     async function synthesizeSummary() {
       const text = document.getElementById('input-text').value.trim();
       const model = document.getElementById('model-select').value;
       const style = document.querySelector('input[name="style"]:checked').value;
+      const customToken = (localStorage.getItem('hf_token') || '').trim();
       const errorBox = document.getElementById('error-box');
       const submitBtn = document.getElementById('submit-btn');
       const outputBox = document.getElementById('output-box');
+      const engineBadge = document.getElementById('engine-badge');
 
       errorBox.style.display = 'none';
 
@@ -509,7 +542,7 @@
         const res = await fetch('/api/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, model, style, maxLength: 150 })
+          body: JSON.stringify({ text, model, style, maxLength: 150, customToken })
         });
 
         const data = await res.json();
@@ -518,6 +551,9 @@
         }
 
         outputBox.innerText = data.summary;
+        if (engineBadge && data.engine_mode) {
+          engineBadge.innerText = data.engine_mode;
+        }
         document.getElementById('orig-words').innerHTML = `${data.original_word_count} <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span>`;
         document.getElementById('summ-words').innerHTML = `${data.summary_word_count} <span style="font-size:12px;font-weight:400;color:#94a3b8;">words</span>`;
         document.getElementById('ratio').innerHTML = `${data.compression_ratio}% <span style="font-size:12px;font-weight:400;color:#34d399;">saved</span>`;

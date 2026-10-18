@@ -2,6 +2,7 @@
   "name": "consis-ai",
   "version": "2.0.0",
   "description": "ConsisAI - Executive Text Summarizer by Rajendra Singh Bisht",
+  "type": "module",
   "scripts": {
     "start": "serve public"
   },
