@@ -88,8 +88,10 @@ export default async function handler(req, res) {
     }
 
     const providedKey = (customToken && customToken.trim()) || '';
-    const groqKey = process.env.GROQ_API_KEY || (providedKey.startsWith('gsk_') ? providedKey : '');
-    const hfToken = process.env.HF_TOKEN || (providedKey.startsWith('hf_') ? providedKey : (providedKey && !providedKey.startsWith('gsk_') ? providedKey : ''));
+    let rawGroq = (process.env.GROQ_API_KEY || (providedKey.startsWith('gsk_') ? providedKey : '')).trim();
+    rawGroq = rawGroq.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
+    const groqKey = rawGroq;
+    const hfToken = (process.env.HF_TOKEN || (providedKey.startsWith('hf_') ? providedKey : (providedKey && !providedKey.startsWith('gsk_') ? providedKey : ''))).trim();
     const token = hfToken;
     let summary = '';
     let mode = 'ConsisAI Fast Semantic Engine';
@@ -130,45 +132,109 @@ export default async function handler(req, res) {
     // 1. Try Groq Free Cloud API first if Groq key is present (Ultra-Fast 300 tokens/sec, true abstractive)
     if (targetModel !== null && groqKey) {
       try {
-        const groqModel = (targetModel && (targetModel.includes('70b') || targetModel.includes('versatile')))
-          ? 'llama-3.3-70b-versatile'
-          : 'llama-3.1-8b-instant';
+        const groqCandidates = [
+          (targetModel && (targetModel.includes('70b') || targetModel.includes('versatile'))) ? 'llama-3.3-70b-versatile' : 'llama-3.1-8b-instant',
+          'llama-3.3-70b-versatile',
+          'llama-3.1-8b-instant',
+          'llama-3.3-70b-specdec',
+          'llama3-70b-8192',
+          'llama3-8b-8192',
+          'mixtral-8x7b-32768',
+          'gemma2-9b-it'
+        ];
 
-        const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${groqKey}`
-          },
-          body: JSON.stringify({
-            model: groqModel,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: text }
-            ],
-            max_tokens: parseInt(maxLength, 10) || 200,
-            temperature: 0.3
-          })
-        });
+        // Deduplicate
+        const testModels = [...new Set(groqCandidates)];
 
-        if (groqRes.ok) {
-          const groqData = await groqRes.json();
-          const gen = groqData.choices?.[0]?.message?.content;
-          if (gen && gen.trim()) {
-            summary = gen.trim();
-            mode = isFineTunedTLDR
-              ? 'ConsisAI TL;DR Neural Model (Groq LPU)'
-              : isFineTunedPegasus
-              ? 'ConsisAI Pegasus Neural Model (Groq LPU)'
-              : model.includes('bart')
-              ? 'ConsisAI BART Neural Engine (Groq LPU)'
-              : model.includes('pegasus')
-              ? 'ConsisAI Pegasus Neural Engine (Groq LPU)'
-              : `Deep Neural (${groqModel} Groq)`;
+        for (const candidateModel of testModels) {
+          const groqRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${groqKey}`
+            },
+            body: JSON.stringify({
+              model: candidateModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: text }
+              ],
+              max_tokens: parseInt(maxLength, 10) || 200,
+              temperature: 0.3
+            })
+          });
+
+          if (groqRes.ok) {
+            const groqData = await groqRes.json();
+            const gen = groqData.choices?.[0]?.message?.content;
+            if (gen && gen.trim()) {
+              summary = gen.trim();
+              mode = isFineTunedTLDR
+                ? 'ConsisAI TL;DR Neural Model (Groq LPU)'
+                : isFineTunedPegasus
+                ? 'ConsisAI Pegasus Neural Model (Groq LPU)'
+                : model.includes('bart')
+                ? 'ConsisAI BART Neural Engine (Groq LPU)'
+                : model.includes('pegasus')
+                ? 'ConsisAI Pegasus Neural Engine (Groq LPU)'
+                : `Deep Neural (${candidateModel} Groq)`;
+              break;
+            }
+          } else {
+            const errTxt = await groqRes.text().catch(() => '');
+            errors.push(`Groq ${candidateModel}: ${groqRes.status} ${errTxt.slice(0, 90)}`);
+            // If unauthorized/bad key, don't keep retrying all candidates
+            if (groqRes.status === 401 || groqRes.status === 403) {
+              errors.push(`Groq Key Info: prefix=${groqKey.slice(0, 6)}... len=${groqKey.length}`);
+              break;
+            }
           }
-        } else {
-          const errTxt = await groqRes.text().catch(() => '');
-          errors.push(`Groq ${groqRes.status}: ${errTxt.slice(0, 100)}`);
+        }
+
+        // If all candidates failed with 404, query /models to inspect what models this key can access
+        if (!summary) {
+          try {
+            const listRes = await fetch('https://api.groq.com/openai/v1/models', {
+              headers: { 'Authorization': `Bearer ${groqKey}` }
+            });
+            const listData = await listRes.json();
+            if (listData && Array.isArray(listData.data)) {
+              const available = listData.data.map(m => m.id);
+              errors.push(`Active Groq Models on Key: [${available.slice(0, 6).join(', ')}]`);
+              // Try the first available text model
+              const validModel = available.find(id => !id.includes('whisper') && !id.includes('guard'));
+              if (validModel) {
+                const retryRes = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${groqKey}`
+                  },
+                  body: JSON.stringify({
+                    model: validModel,
+                    messages: [
+                      { role: 'system', content: systemPrompt },
+                      { role: 'user', content: text }
+                    ],
+                    max_tokens: parseInt(maxLength, 10) || 200,
+                    temperature: 0.3
+                  })
+                });
+                if (retryRes.ok) {
+                  const rData = await retryRes.json();
+                  const gen = rData.choices?.[0]?.message?.content;
+                  if (gen && gen.trim()) {
+                    summary = gen.trim();
+                    mode = `Deep Neural (${validModel} Groq)`;
+                  }
+                }
+              }
+            } else {
+              errors.push(`Groq /models response: ${JSON.stringify(listData).slice(0, 90)}`);
+            }
+          } catch (listErr) {
+            errors.push(`Groq /models error: ${listErr.message}`);
+          }
         }
       } catch (gErr) {
         errors.push(`Groq error: ${gErr.message}`);
