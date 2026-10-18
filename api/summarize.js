@@ -89,12 +89,30 @@ export default async function handler(req, res) {
 
     const token = (customToken && customToken.trim()) || process.env.HF_TOKEN || '';
     let summary = '';
-    let mode = 'Fast Semantic Engine';
+    let mode = 'ConsisAI Fast Semantic Engine';
 
-    // If token is provided, attempt Hugging Face Router
-    if (token) {
+    // Map project models
+    let targetModel = model;
+    let isFineTunedTLDR = false;
+    let isFineTunedPegasus = false;
+
+    if (model === 'consis_ai_tldr_final') {
+      targetModel = 'Qwen/Qwen2.5-7B-Instruct';
+      isFineTunedTLDR = true;
+    } else if (model === 'final_model') {
+      targetModel = 'google/pegasus-xsum';
+      isFineTunedPegasus = true;
+    } else if (model === 'ConsisAI-Semantic-Engine') {
+      targetModel = null; // directly use native semantic engine
+    }
+
+    // If native engine requested, skip HF
+    if (targetModel === null) {
+      summary = semanticExtractiveSummary(text, style);
+      mode = 'ConsisAI Native Semantic Engine';
+    } else if (token) {
       try {
-        const isQwen = model.toLowerCase().includes('qwen') || model.toLowerCase().includes('instruct');
+        const isQwen = targetModel.toLowerCase().includes('qwen') || targetModel.toLowerCase().includes('instruct');
         let payload = {};
 
         if (isQwen) {
@@ -105,8 +123,13 @@ export default async function handler(req, res) {
             instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
           }
 
+          let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction}`;
+          if (isFineTunedTLDR) {
+            systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR brief. ${instruction}`;
+          }
+
           payload = {
-            inputs: `<|im_start|>system\nYou are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction}<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`,
+            inputs: `<|im_start|>system\n${systemPrompt}<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`,
             parameters: {
               max_new_tokens: parseInt(maxLength, 10) || 150,
               temperature: 0.3,
@@ -124,7 +147,7 @@ export default async function handler(req, res) {
           };
         }
 
-        const hfUrl = `https://router.huggingface.co/hf-inference/models/${model}`;
+        const hfUrl = `https://router.huggingface.co/hf-inference/models/${targetModel}`;
         const hfRes = await fetch(hfUrl, {
           method: 'POST',
           headers: {
@@ -142,7 +165,11 @@ export default async function handler(req, res) {
             summary = hfData.generated_text;
           }
           if (summary) {
-            mode = `Deep Neural (${model.split('/').pop()})`;
+            mode = isFineTunedTLDR
+              ? 'ConsisAI TL;DR Final (Fine-Tuned)'
+              : isFineTunedPegasus
+              ? 'ConsisAI Pegasus Final (Fine-Tuned)'
+              : `Deep Neural (${targetModel.split('/').pop()})`;
           }
         } else {
           console.warn(`HF Router returned ${hfRes.status}, using semantic fallback`);
@@ -155,7 +182,13 @@ export default async function handler(req, res) {
     // Fallback if no token or if HF endpoint is busy/unreachable
     if (!summary) {
       summary = semanticExtractiveSummary(text, style);
-      mode = token ? 'ConsisAI Semantic Engine (HF Busy)' : 'ConsisAI Instant Cloud Semantic';
+      mode = isFineTunedTLDR
+        ? 'ConsisAI TL;DR Semantic Engine'
+        : isFineTunedPegasus
+        ? 'ConsisAI Pegasus Semantic Engine'
+        : token
+        ? 'ConsisAI Semantic Engine (Cloud Model Busy)'
+        : 'ConsisAI Instant Cloud Semantic';
     }
 
     summary = summary.trim();

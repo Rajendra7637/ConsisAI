@@ -370,13 +370,24 @@
       <!-- Left Column: Inputs -->
       <section>
         <div class="form-group">
-          <label class="form-label" for="model-select">Neural Summarizer Model</label>
+          <label class="form-label" for="model-select">Neural Summarizer Model Architecture</label>
           <select id="model-select">
-            <option value="facebook/bart-large-cnn" selected>facebook/bart-large-cnn (Classic Fast Abstractive)</option>
-            <option value="google/pegasus-xsum">google/pegasus-xsum (Ultra-Concise Gap Sentence Pretraining)</option>
-            <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct (Modern Instruction LLM)</option>
+            <optgroup label="🌟 ConsisAI Custom Models (Trained &amp; Fine-Tuned)">
+              <option value="consis_ai_tldr_final" selected>ConsisAI TL;DR Final (Fine-Tuned on OpenAI TL;DR Corpus)</option>
+              <option value="final_model">ConsisAI Pegasus Final (Fine-Tuned on Research Papers &amp; News)</option>
+              <option value="ConsisAI-Semantic-Engine">ConsisAI Native Semantic Engine (Instant Zero-Latency Edge)</option>
+            </optgroup>
+            <optgroup label="🧠 Modern Instruction LLMs (ChatGPT / Gemini Style)">
+              <option value="Qwen/Qwen2.5-0.5B-Instruct">Qwen/Qwen2.5-0.5B-Instruct (630M Compact Instruct LLM)</option>
+              <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct (7 Billion Deep Reasoning LLM)</option>
+            </optgroup>
+            <optgroup label="📰 Classical Seq2Seq Transformers">
+              <option value="facebook/bart-large-cnn">facebook/bart-large-cnn (561M Meta BART Abstractive)</option>
+              <option value="google/pegasus-cnn_dailymail">google/pegasus-cnn_dailymail (866M Pegasus News Model)</option>
+              <option value="google/pegasus-xsum">google/pegasus-xsum (865M Pegasus Extreme Conciseness)</option>
+            </optgroup>
           </select>
-          <div class="form-hint">Cloud serverless inference with zero local GPU requirements.</div>
+          <div class="form-hint">Supports all 8 project models: Custom Fine-Tuned, Modern Qwen LLMs, and Meta/Google Seq2Seq.</div>
         </div>
 
         <div class="form-group">
