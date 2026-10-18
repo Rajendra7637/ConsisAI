@@ -106,6 +106,8 @@ export default async function handler(req, res) {
       targetModel = null; // directly use native semantic engine
     }
 
+    let lastError = null;
+
     // If native engine requested, skip HF
     if (targetModel === null) {
       summary = semanticExtractiveSummary(text, style);
@@ -113,7 +115,6 @@ export default async function handler(req, res) {
     } else if (token) {
       try {
         const isQwen = targetModel.toLowerCase().includes('qwen') || targetModel.toLowerCase().includes('instruct');
-        let payload = {};
 
         if (isQwen) {
           let instruction = 'Provide a high-density executive brief with 2-4 key takeaway bullet points.';
@@ -128,16 +129,37 @@ export default async function handler(req, res) {
             systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR brief. ${instruction}`;
           }
 
-          payload = {
-            inputs: `<|im_start|>system\n${systemPrompt}<|im_end|>\n<|im_start|>user\n${text}<|im_end|>\n<|im_start|>assistant\n`,
-            parameters: {
-              max_new_tokens: parseInt(maxLength, 10) || 150,
-              temperature: 0.3,
-              return_full_text: false
+          // Try OpenAI-compatible chat router
+          const chatRes = await fetch('https://router.huggingface.co/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              model: targetModel,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: text }
+              ],
+              max_tokens: parseInt(maxLength, 10) || 150,
+              temperature: 0.3
+            })
+          });
+
+          if (chatRes.ok) {
+            const chatData = await chatRes.json();
+            summary = chatData.choices?.[0]?.message?.content || '';
+            if (summary) {
+              mode = isFineTunedTLDR ? 'ConsisAI TL;DR Final (Fine-Tuned)' : `Deep Neural (${targetModel.split('/').pop()})`;
             }
-          };
+          } else {
+            const errTxt = await chatRes.text().catch(() => '');
+            lastError = `Qwen Router ${chatRes.status}: ${errTxt.slice(0, 150)}`;
+          }
         } else {
-          payload = {
+          // Seq2Seq models (BART, Pegasus)
+          const payload = {
             inputs: text,
             parameters: {
               max_length: parseInt(maxLength, 10) || 150,
@@ -145,37 +167,46 @@ export default async function handler(req, res) {
               do_sample: false
             }
           };
-        }
 
-        const hfUrl = `https://router.huggingface.co/hf-inference/models/${targetModel}`;
-        const hfRes = await fetch(hfUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(payload)
-        });
+          const endpoints = [
+            `https://router.huggingface.co/hf-inference/models/${targetModel}`,
+            `https://api-inference.huggingface.co/models/${targetModel}`
+          ];
 
-        if (hfRes.ok) {
-          const hfData = await hfRes.json();
-          if (Array.isArray(hfData) && hfData[0]) {
-            summary = hfData[0].summary_text || hfData[0].generated_text || '';
-          } else if (hfData.generated_text) {
-            summary = hfData.generated_text;
+          for (const ep of endpoints) {
+            try {
+              const hfRes = await fetch(ep, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`,
+                  'x-wait-for-model': 'true'
+                },
+                body: JSON.stringify(payload)
+              });
+
+              if (hfRes.ok) {
+                const hfData = await hfRes.json();
+                if (Array.isArray(hfData) && hfData[0]) {
+                  summary = hfData[0].summary_text || hfData[0].generated_text || '';
+                } else if (hfData.generated_text) {
+                  summary = hfData.generated_text;
+                }
+                if (summary) {
+                  mode = isFineTunedPegasus ? 'ConsisAI Pegasus Final (Fine-Tuned)' : `Deep Neural (${targetModel.split('/').pop()})`;
+                  break;
+                }
+              } else {
+                const errTxt = await hfRes.text().catch(() => '');
+                lastError = `HF ${ep.includes('router') ? 'Router' : 'API'} ${hfRes.status}: ${errTxt.slice(0, 150)}`;
+              }
+            } catch (epErr) {
+              lastError = `Connection to ${ep}: ${epErr.message}`;
+            }
           }
-          if (summary) {
-            mode = isFineTunedTLDR
-              ? 'ConsisAI TL;DR Final (Fine-Tuned)'
-              : isFineTunedPegasus
-              ? 'ConsisAI Pegasus Final (Fine-Tuned)'
-              : `Deep Neural (${targetModel.split('/').pop()})`;
-          }
-        } else {
-          console.warn(`HF Router returned ${hfRes.status}, using semantic fallback`);
         }
       } catch (hfErr) {
-        console.warn('HF Router connection issue, falling back to semantic engine:', hfErr.message);
+        lastError = `Inference exception: ${hfErr.message}`;
       }
     }
 
@@ -205,7 +236,8 @@ export default async function handler(req, res) {
       original_word_count: origWords,
       summary_word_count: summWords,
       compression_ratio: parseFloat(ratio),
-      engine_mode: mode
+      engine_mode: mode,
+      debug_info: lastError
     });
   } catch (err) {
     console.error('API Handler Error:', err);
