@@ -422,20 +422,6 @@
           </div>
         </div>
 
-        <div class="form-group" style="margin-top: 14px;">
-          <details style="background: var(--cozy-card); border: 1px solid var(--cozy-border); border-radius: 8px; padding: 10px 14px;" open>
-            <summary style="cursor: pointer; font-size: 13px; font-weight: 700; color: #ffffff;">🔑 Cloud AI Key (Groq Free Key or Hugging Face)</summary>
-            <div style="margin-top: 10px;">
-              <input type="password" id="hf-token-input" placeholder="Paste free Groq key (gsk_...) or HF token (hf_...)" oninput="saveToken()" style="margin-bottom: 6px;">
-              <p style="font-size: 11.5px; color: #cbd5e1; line-height: 1.45;">
-                <strong style="color: #34d399;">⚡ Recommended (100% Free, No Credit Card):</strong>
-                Get a free key in 10 seconds at <a href="https://console.groq.com/keys" target="_blank" style="color: #60a5fa; text-decoration: underline; font-weight: 600;">console.groq.com/keys</a> for true neural abstractive summaries at 300 tokens/sec.
-                <br>Or set <code>GROQ_API_KEY</code> in Vercel Project Settings to power all mobile phones automatically without entering a key!
-              </p>
-            </div>
-          </details>
-        </div>
-
         <button id="submit-btn" class="summarize-btn" onclick="synthesizeSummary()">Synthesize Summary</button>
         <div id="error-box" class="error-box"></div>
       </section>
@@ -515,30 +501,10 @@
       document.getElementById('cozy-btn').innerText = "🎨 " + p.name;
     }
 
-    // Initialize token on load
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedToken = localStorage.getItem('ai_cloud_key') || localStorage.getItem('hf_token');
-      if (savedToken) {
-        const inp = document.getElementById('hf-token-input');
-        if (inp) inp.value = savedToken;
-      }
-    });
-
-    function saveToken() {
-      const inp = document.getElementById('hf-token-input');
-      if (inp) {
-        const val = inp.value.trim();
-        localStorage.setItem('ai_cloud_key', val);
-        localStorage.setItem('hf_token', val);
-      }
-    }
-
     async function synthesizeSummary() {
       const text = document.getElementById('input-text').value.trim();
       const model = document.getElementById('model-select').value;
       const style = document.querySelector('input[name="style"]:checked').value;
-      const inputEl = document.getElementById('hf-token-input');
-      const customToken = ((inputEl && inputEl.value.trim()) || localStorage.getItem('ai_cloud_key') || localStorage.getItem('hf_token') || '').trim();
       const errorBox = document.getElementById('error-box');
       const submitBtn = document.getElementById('submit-btn');
       const outputBox = document.getElementById('output-box');
@@ -560,7 +526,7 @@
         const res = await fetch('/api/summarize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text, model, style, maxLength: 150, customToken })
+          body: JSON.stringify({ text, model, style, maxLength: 150 })
         });
 
         const data = await res.json();
@@ -568,7 +534,17 @@
           throw new Error(data.error || 'Failed to synthesize summary.');
         }
 
-        outputBox.innerText = data.summary;
+        // Clean any markdown bolding (**) or formatting artifacts for clean executive brief
+        const cleanSummary = data.summary
+          ? data.summary
+              .replace(/\*\*/g, '')
+              .replace(/__/g, '')
+              .replace(/^#{1,6}\s+/gm, '')
+              .replace(/^\s*[\*\-]\s+/gm, '• ')
+              .trim()
+          : '';
+
+        outputBox.innerText = cleanSummary;
         if (engineBadge && data.engine_mode) {
           engineBadge.innerText = data.engine_mode;
         }

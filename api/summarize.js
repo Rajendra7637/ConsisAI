@@ -120,13 +120,13 @@ export default async function handler(req, res) {
       instruction = 'Provide a single fluent synthesis paragraph preserving the exact core meaning.';
     }
 
-    let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction} Preserve complete core meaning and nuance. Rephrase and synthesize concepts with extreme conciseness and clarity. Do not copy sentences word-for-word.`;
+    let systemPrompt = `You are ConsisAI, an executive summarizer developed by Rajendra Singh Bisht. ${instruction} Preserve complete core meaning and nuance. Rephrase and synthesize concepts with extreme conciseness and clarity. Do not copy sentences word-for-word. Do not use markdown bold asterisks (**) or markdown headers in the output; present clean text directly.`;
     if (isFineTunedTLDR) {
-      systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction} Synthesize and summarize abstractively.`;
+      systemPrompt = `You are ConsisAI (Fine-Tuned on OpenAI human-annotated TL;DR dataset by Rajendra Singh Bisht). Extract the most critical core meaning into a concise TL;DR executive brief. ${instruction} Synthesize and summarize abstractively. Do not use markdown bold asterisks (**) or markdown headers in the output; present clean text directly.`;
     } else if (model && model.includes('bart')) {
-      systemPrompt = `You are ConsisAI (BART Transformer Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with high linguistic fluency.`;
+      systemPrompt = `You are ConsisAI (BART Transformer Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with high linguistic fluency. Do not use markdown bold asterisks (**) in the output.`;
     } else if (model && model.includes('pegasus')) {
-      systemPrompt = `You are ConsisAI (Pegasus Extreme Conciseness Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with maximum information density.`;
+      systemPrompt = `You are ConsisAI (Pegasus Extreme Conciseness Architecture by Rajendra Singh Bisht). ${instruction} Synthesize and summarize abstractively with maximum information density. Do not use markdown bold asterisks (**) in the output.`;
     }
 
     // 1. Try Groq Free Cloud API first if Groq key is present (Ultra-Fast 300 tokens/sec, true abstractive)
@@ -365,7 +365,15 @@ export default async function handler(req, res) {
         : 'ConsisAI Instant Cloud Semantic';
     }
 
-    summary = summary.trim();
+    // Clean markdown bolding (**), header markers, and normalize bullet points
+    if (summary) {
+      summary = summary
+        .replace(/\*\*/g, '')
+        .replace(/__/g, '')
+        .replace(/^#{1,6}\s+/gm, '')
+        .replace(/^\s*[\*\-]\s+/gm, '• ')
+        .trim();
+    }
 
     // Word analytics
     const origWords = text.trim().split(/\s+/).filter(Boolean).length;
