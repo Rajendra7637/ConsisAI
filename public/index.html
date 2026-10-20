@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>ConsisAI - Executive Text Summarization</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="alternate icon" href="/favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
@@ -60,7 +62,19 @@
     .header-title-row {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 14px;
+    }
+    .brand-logo-img {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px;
+      object-fit: contain;
+      filter: drop-shadow(0 0 12px rgba(56, 189, 248, 0.45));
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+    }
+    .brand-logo-img:hover {
+      transform: scale(1.1) rotate(4deg);
     }
     .brand-name {
       font-size: 32px;
@@ -355,6 +369,7 @@
     <header class="header-wrapper">
       <div>
         <div class="header-title-row">
+          <img src="/logo.svg" alt="ConsisAI Logo" class="brand-logo-img">
           <h1 class="brand-name">ConsisAI</h1>
           <span class="brand-badge">Vercel Cloud v2.0</span>
         </div>
