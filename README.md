@@ -4,7 +4,7 @@ This directory contains the production-ready **Vercel Serverless** package for *
 
 ---
 
-## ⚡ Architecture Overview
+## Architecture Overview
 
 Vercel Serverless Functions have a strict **250 MB package size limit**. Deep learning libraries like PyTorch (`torch` ~1.5 GB) and raw transformer checkpoints (~2 GB) exceed this limit if packaged directly.
 
@@ -15,7 +15,7 @@ This deployment solves that with an elegant, production-grade cloud architecture
 
 ---
 
-## 🚀 How to Deploy to Vercel
+##  How to Deploy to Vercel
 
 ### Method 1: Deploy with Vercel CLI (Quickest)
 
@@ -64,11 +64,11 @@ This deployment solves that with an elegant, production-grade cloud architecture
 3. Go to [https://vercel.com/new](https://vercel.com/new).
 4. Click **Import** next to your `consis-ai` repository.
 5. Click **Deploy**. Vercel will build and assign you a permanent public domain:
-   👉 `https://consis-ai.vercel.app`
+    `https://consis-ai.vercel.app`
 
 ---
 
-## 🔑 Environment Variables (Optional for High Traffic)
+## Environment Variables (Optional for High Traffic)
 
 By default, the serverless function can use Hugging Face's public tier. For higher rate limits:
 1. Go to your Project Settings on Vercel -> **Environment Variables**.
