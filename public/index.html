@@ -528,7 +528,14 @@
       errorBox.style.display = 'none';
 
       if (!text) {
-        errorBox.innerText = 'Please enter or paste a document to summarize.';
+        errorBox.innerText = '⚠️ Please enter or paste a document to summarize.';
+        errorBox.style.display = 'block';
+        return;
+      }
+
+      const inputWords = text.split(/\s+/).filter(Boolean).length;
+      if (inputWords < 15) {
+        errorBox.innerText = `⚠️ Input is too short to summarize. Please enter at least 15 words (currently ${inputWords} word${inputWords === 1 ? '' : 's'}).`;
         errorBox.style.display = 'block';
         return;
       }

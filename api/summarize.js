@@ -87,6 +87,13 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Please enter text to summarize.' });
     }
 
+    const inputWords = text.trim().split(/\s+/).filter(Boolean).length;
+    if (inputWords < 15) {
+      return res.status(400).json({
+        error: `Input is too short to summarize. Please enter at least 15 words (currently ${inputWords} word${inputWords === 1 ? '' : 's'}).`
+      });
+    }
+
     const providedKey = (customToken && customToken.trim()) || '';
     let rawGroq = (process.env.GROQ_API_KEY || (providedKey.startsWith('gsk_') ? providedKey : '')).trim();
     rawGroq = rawGroq.replace(/^["']|["']$/g, '').replace(/^Bearer\s+/i, '').trim();
